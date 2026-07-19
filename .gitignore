@@ -53,3 +53,25 @@ dkms.conf
 
 # debug information files
 *.dwo
+./ref
+# --- ESP-IDF Build Artifacts ---
+build/
+sdkconfig
+sdkconfig.old
+
+# --- VS Code & IDE Settings ---
+.vscode/
+*.code-workspace
+.history/
+
+# --- Python Compiled Files (Used by ESP-IDF tools) ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# --- System & OS Files ---
+.DS_Store
+Thumbs.db
+dependencies.lock
