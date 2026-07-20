@@ -54,3 +54,6 @@ ATMOS is a ESP32 based weather display.
 - FAT Filesystem support -> Long file name support = 'long file name buffer in heap'
     - Note: Maybe this is why I had to implement a custom file wrapper. By default files were not opening may be due to file name length restriction.
     - Note: Could have put the images in the ESP32 instead of the SD card.
+
+### Disclaimer
+- Most of the code in this repository was generated with the assistance of AI. While reasonable effort has been made to review and test the generated code, it has not been formally audited. Use this software at your own risk, and verify its correctness and security before deploying it in production.
