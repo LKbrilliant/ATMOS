@@ -19,6 +19,8 @@
 #include "esp_http_client.h"
 #include "cJSON.h"
 #include "wifi_provisioner.h"
+#include "driver/gpio.h"
+#include "esp_wifi.h"
 
 LV_FONT_DECLARE(roboto_condensed_light_150)
 LV_FONT_DECLARE(roboto_condensed_light_60)
@@ -44,6 +46,10 @@ LV_FONT_DECLARE(roboto_condensed_light_60)
 #define VAL_LATITUDE   "49.8844"
 #define VAL_LONGITUDE  "-97.147"
 
+#define RESET_BUTTON_GPIO    GPIO_NUM_0  // BOOT button on most ESP32 boards
+#define HOLD_TIME_MS         3000        // Hold for 3 seconds to trigger reset
+
+
 // API Endpoint Architecture Construction
 #define WEATHER_URL \
     "http://api.open-meteo.com/v1/forecast?" \
@@ -65,6 +71,58 @@ static lv_obj_t *wifi_status_label = NULL;
 static lv_obj_t *wifi_screen = NULL;
 
 static lv_fs_drv_t my_sd_drv;
+
+void reset_wifi_and_restart(void)
+{
+    ESP_LOGW("RESET", "Erasing Wi-Fi credentials via wifi_provisioner...");
+
+    esp_err_t err = wifi_prov_erase_credentials();
+    if (err == ESP_OK) {
+        ESP_LOGI("RESET", "Wi-Fi credentials erased successfully.");
+    } else {
+        ESP_LOGE("RESET", "Failed to erase credentials: %s", esp_err_to_name(err));
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    esp_restart();
+}
+
+static void reset_button_task(void *pvParameters)
+{
+    // Configure GPIO 0 as input with internal pull-up
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << RESET_BUTTON_GPIO),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&io_conf);
+
+    uint32_t press_duration = 0;
+
+    while (1) {
+        // Active LOW: Button is pressed when level is 0
+        if (gpio_get_level(RESET_BUTTON_GPIO) == 0) {
+            press_duration += 100;
+            
+            if (press_duration >= HOLD_TIME_MS) {
+                ESP_LOGI("RESET", "Reset button hold detected!");
+                reset_wifi_and_restart();
+            }
+        } else {
+            press_duration = 0; // Reset counter if released early
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100)); // Check every 100ms
+    }
+}
+
+void reset_button_init(void)
+{
+    xTaskCreate(reset_button_task, "reset_button_task", 4096, NULL, 10, NULL);
+}
 
 void lvgl_lock(void) 
 {
@@ -796,12 +854,13 @@ void app_main(void)
         return;
     }
     // button_Init();
-    // Wireless_Init();
     Driver_Init();
     LCD_Init();
     SD_Init();
-    register_custom_sd_driver();
     LVGL_Init();
+    register_custom_sd_driver();
+
+    // sd_card_test();                // Optional sanity test
 
     //-----------------------WiFi captive portal setup-------------------//
     // wifi_prov_erase_credentials(); // remove the saved credentials (only need for debugging)
@@ -848,6 +907,8 @@ void app_main(void)
     // Change the integer argument from 1 to 4 to test each specific UI scenario:
     // run_weather_ui_test(2);
     //--------------------------------------------------//
+        
+    reset_button_init(); // wait for a long press for wifi credential reset
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(10));
