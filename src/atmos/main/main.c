@@ -21,6 +21,7 @@
 #include "wifi_provisioner.h"
 #include "driver/gpio.h"
 #include "esp_wifi.h"
+#include "esp_sleep.h"
 
 LV_FONT_DECLARE(roboto_condensed_light_150)
 LV_FONT_DECLARE(roboto_condensed_light_60)
@@ -85,7 +86,9 @@ void reset_wifi_and_restart(void)
 
     vTaskDelay(pdMS_TO_TICKS(500));
 
-    esp_restart();
+    // esp_restart();
+    esp_sleep_enable_timer_wakeup(100 * 1000); // 100 ms
+    esp_deep_sleep_start();
 }
 
 static void reset_button_task(void *pvParameters)
