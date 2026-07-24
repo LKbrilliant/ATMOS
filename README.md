@@ -1,13 +1,27 @@
 # ATMOS
-ATMOS is a ESP32 based weather display. 
+ATMOS is an embedded, standalone weather forecasting display based on ESP32-S3.
+
+## Features
+
+* **Automatic Captive Portal:** If no saved Wi-Fi network is found on boot, the device automatically broadcasts a setup Access Point and captive portal.
+* **One-Time Configuration:** Easily set up Wi-Fi credentials, GPS coordinates, and custom/local yearly min-max temperature thresholds through the browser interface—stored permanently in NVS memory.
+* **Hardware Factory Reset:** Press and hold the onboard **BOOT** button for >3 seconds to erase saved network credentials and location data.
+* **Weather Data:** Integrates with the [Open-Meteo API](https://open-meteo.com/) to fetch current and forecast metrics (weather, current temperature, "feels like" temperature, and daily min/max temperatures).
+* **Comfort Bar:** Generates a color gradient bar based on your custom temperature bounds:
+  * **Min Temp** $\rightarrow$ Cold (Purple)
+  * **21 °C** $\rightarrow$ Ideal Comfort (Green)
+  * **Max Temp** $\rightarrow$ Hot (Red)
 
 ## TODO
-- Location data and min-max temperature range is hard coded. Need to add manual data entering to the captive portal
+- Add tap to wake option to reduce battery consumption
+
+## Known issues
+- Color inversion and coordinate shift occasionally when redrawing UI
 
 ### Hardware
 - Display: Waveshare ESP32-S3 2.8" non-touch
 - 1GB micro SD card (FAT32) with the weather icons (.bin formatted) in its root directory.
-- 3D printed enclosure (./CAD)
+- 3D printed enclosure
 - 2000mAh lipo battery
 - USB type C female connector
 - Latching switch
@@ -43,7 +57,7 @@ ATMOS is a ESP32 based weather display.
 - Do a 'Full clean'
 - Then 'Build'
 
-### Changes to the ESP-IDF environment
+### Changes to the vscode ESP-IDF environment
 - Enable fonts
     - lv_font_montserrat_12
     - lv_font_montserrat_16
