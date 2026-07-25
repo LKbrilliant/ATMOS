@@ -11,8 +11,12 @@ gyro_odr_t gyro_odr = gyro_odr_norm_8000;
 sensor_state_t sensor_state = sensor_default;
 lpf_t acc_lpf;
 
-float accelScales, gyroScales;
-float accelScales = 0;
+// float accelScales, gyroScales;
+// float accelScales = 0;
+
+float accelScales = 4.0f / 32768.0f; // Default for ACC_RANGE_4G
+float gyroScales = 64.0f / 32768.0f;
+
 uint8_t readings[12];
 uint32_t reading_timestamp_us; // timestamp in arduino micros() time
 /**
@@ -61,6 +65,7 @@ void QMI8658_Init(void)
 void QMI8658_Loop(void)
 {
   getAccelerometer();
+  check_tap_event();  // Check if current reading indicates a tap
 }
 
 /**

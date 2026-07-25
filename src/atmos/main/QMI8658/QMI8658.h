@@ -159,3 +159,7 @@ float getGyroY();
 float getGyroZ();
 void getAccelerometer(void);
 void getGyroscope(void);
+
+void check_tap_event(void);
+void init_display_brightness_timer(void);
+void reset_backlight_dim_timer(void);

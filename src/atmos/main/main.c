@@ -6,21 +6,20 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "driver/ledc.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_http_client.h"
 #include "esp_wifi.h"
 #include "esp_sleep.h"
+#include "esp_timer.h"
 #include "cJSON.h"
 
-#include "TCA9554PWR.h"
-#include "PCF85063.h"
 #include "QMI8658.h"
 #include "ST7701S.h"
 #include "SD_MMC.h"
 #include "LVGL_Driver.h"
 #include "LVGL_Example.h"
-#include "Wireless.h"
 #include "BAT_Driver.h"
 #include "wifi_provisioner.h"
 #include "nvs_flash.h"
@@ -47,6 +46,16 @@ LV_FONT_DECLARE(roboto_condensed_light_60)
 #define BACKLIGHT_CHANNEL      LEDC_CHANNEL_0
 #define BACKLIGHT_TIMER        LEDC_TIMER_0
 #define BACKLIGHT_DUTY_RES     LEDC_TIMER_10_BIT
+
+#define BRIGHTNESS_DIM_TIMEOUT_MS   20000
+#define BRIGHTNESS_HIGH             100   // Full brightness percentage
+#define BRIGHTNESS_LOW              10    // Dimmed brightness percentage
+
+#define TAP_THRESHOLD_G             0.08f  // Acceleration magnitude change threshold in g
+#define TAP_DEBOUNCE_MS             300   // Minimum time between tap detections
+
+static esp_timer_handle_t dim_timer = NULL;
+static uint32_t last_tap_time_ms = 0;
 
 /* --- FALLBACK VALUES --- */
 static float g_temp_low_end = -30.0f;
@@ -134,6 +143,49 @@ void set_backlight_brightness(uint8_t brightness_percent)
 
     ledc_set_duty(BACKLIGHT_SPEED_MODE, BACKLIGHT_CHANNEL, duty);
     ledc_update_duty(BACKLIGHT_SPEED_MODE, BACKLIGHT_CHANNEL);
+}
+
+static void dim_timer_callback(void* arg)
+{
+    set_backlight_brightness(BRIGHTNESS_LOW);
+}
+
+void reset_backlight_dim_timer(void)
+{
+    if (dim_timer == NULL) {
+        const esp_timer_create_args_t timer_args = {
+            .callback = &dim_timer_callback,
+            .name = "backlight_dim_timer"
+        };
+        esp_timer_create(&timer_args, &dim_timer);
+    } else {
+        esp_timer_stop(dim_timer);
+    }
+
+    esp_timer_start_once(dim_timer, BRIGHTNESS_DIM_TIMEOUT_MS * 1000ULL);
+}
+
+void wakeup_display_and_star_dim_timer(void)
+{
+    set_backlight_brightness(BRIGHTNESS_HIGH);
+    reset_backlight_dim_timer();
+}
+
+void check_tap_event(void)
+{
+    // Calculate total acceleration magnitude vector: sqrt(x^2 + y^2 + z^2)
+    float magnitude = sqrtf((Accel.x * Accel.x) + (Accel.y * Accel.y) + (Accel.z * Accel.z));
+
+    // Under normal gravity at rest, magnitude ~1.0g.
+    float delta_g = fabsf(magnitude - 1.0f);
+
+    uint32_t current_time_ms = (uint32_t)(esp_timer_get_time() / 1000ULL);
+
+    if (delta_g > TAP_THRESHOLD_G && (current_time_ms - last_tap_time_ms) > TAP_DEBOUNCE_MS) {
+        last_tap_time_ms = current_time_ms;
+        
+        wakeup_display_and_star_dim_timer();
+    }
 }
 
 void reset_wifi_and_restart(void)
@@ -570,7 +622,7 @@ static void weather_fetch_task(void *pvParameters)
                         parse_weather_json(response_buffer);
                         
                         lvgl_lock();
-                        update_weather_ui_data(); // Fast update without recreating objects[cite: 1]
+                        update_weather_ui_data(); // Fast update without recreating objects
                         lvgl_unlock();
                     }
                 }
@@ -647,7 +699,6 @@ void Driver_Loop(void *parameter)
     while(1)
     {
         QMI8658_Loop();
-        RTC_Loop();
         BAT_Get_Volts();
         vTaskDelay(pdMS_TO_TICKS(100));
     }
@@ -659,8 +710,7 @@ void Driver_Init(void)
     Flash_Searching();
     BAT_Init();
     I2C_Init();
-    PCF85063_Init();
-    EXIO_Init();
+    QMI8658_Init();
     xTaskCreatePinnedToCore(
         Driver_Loop, 
         "Other Driver task",
@@ -732,8 +782,8 @@ void app_main(void)
         wifi_status_label = NULL;
     }
 
-    // init_backlight_pwm();
-    // set_backlight_brightness(100);
+    init_backlight_pwm();
+    wakeup_display_and_star_dim_timer();
 
     // Construct Persistent UI Layout ONCE
     lvgl_lock();

@@ -11,12 +11,13 @@ ATMOS is an embedded, standalone weather forecasting display based on ESP32-S3.
   * **Min Temp** $\rightarrow$ Cold (Purple)
   * **21 °C** $\rightarrow$ Ideal Comfort (Green)
   * **Max Temp** $\rightarrow$ Hot (Red)
+* **Tap/raise to wake up:** Gently tap or bump the unit to wake the display and boost brightness back to 100%
 
-## TODO
-- Add tap to wake option to reduce battery consumption
+## ToDo:
+- Add battery voltage monitor and a charge reminder when low on battery.
 
 ## Known issues
-- Color inversion and coordinate shift occasionally when redrawing UI
+- Color inversion and upward shift of the display at the first UI draw (right after setting the credentials). Quick reset or power on/off will resolve the issue. This only occur at the initial setup.
 
 ### Hardware
 - Display: Waveshare ESP32-S3 2.8" non-touch
