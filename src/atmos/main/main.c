@@ -378,10 +378,10 @@ static void get_main_icon_path(char *buffer, size_t max_len)
     if (current_weather.is_day == 0) {
         if (code == 0) {
             float moon = calculate_local_moon_phase(forecast_weather.date[0]);
-            if (moon < 0.05f || moon > 0.95f) {
+            if (moon < 0.1f || moon > 0.9f) {
                 snprintf(buffer, max_len, "S:/0_new_moon_100.bin");
                 return;
-            } else if (moon > 0.45f && moon < 0.55f) {
+            } else if (moon > 0.4f && moon < 0.6f) {
                 snprintf(buffer, max_len, "S:/0_full_moon_100.bin");
                 return;
             } else {
