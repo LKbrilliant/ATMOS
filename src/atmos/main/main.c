@@ -33,7 +33,7 @@ LV_FONT_DECLARE(roboto_condensed_light_150)
 LV_FONT_DECLARE(roboto_condensed_light_60)
 
 /* --- CONFIGURATION & CONSTANTS --- */
-#define UPDATE_INTERVAL_MIN    0.5
+#define UPDATE_INTERVAL_MIN    15
 #define MAX_HTTP_RECV_BUFFER   4096
 
 #define COLOR_APP_BACKGROUND   0x0F172A // Dark Blue
