@@ -33,7 +33,7 @@ LV_FONT_DECLARE(roboto_condensed_light_150)
 LV_FONT_DECLARE(roboto_condensed_light_60)
 
 /* --- CONFIGURATION & CONSTANTS --- */
-#define UPDATE_INTERVAL_MIN    15
+#define UPDATE_INTERVAL_MIN    0.5
 #define MAX_HTTP_RECV_BUFFER   4096
 
 #define COLOR_APP_BACKGROUND   0x0F172A // Dark Blue
@@ -58,6 +58,16 @@ static SemaphoreHandle_t lvgl_mux = NULL;
 static lv_obj_t *wifi_status_label = NULL;
 static lv_obj_t *wifi_screen = NULL;
 static lv_fs_drv_t my_sd_drv;
+
+/* --- PERSISTENT LVGL UI HANDLES --- */
+static lv_obj_t * main_icon_img   = NULL;
+static lv_obj_t * temp_num_label  = NULL;
+static lv_obj_t * temp_unit_lbl   = NULL;
+static lv_obj_t * feels_like_lbl  = NULL;
+static lv_obj_t * range_bar_obj   = NULL;
+static lv_obj_t * sub_icons[5]    = {NULL};
+static lv_obj_t * day_labels[5]   = {NULL};
+static lv_obj_t * min_max_lbls[5] = {NULL};
 
 /* --- DATA STRUCTURES --- */
 typedef struct {
@@ -337,60 +347,39 @@ static void get_main_icon_path(char *buffer, size_t max_len)
     snprintf(buffer, max_len, "S:/%d_100.bin", code);
 }
 
-/* --- UI RENDERING --- */
-void build_weather_ui(void) 
+void build_weather_ui_once(void) 
 {
     lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(COLOR_APP_BACKGROUND), 0);
     lv_obj_clear_flag(lv_scr_act(), LV_OBJ_FLAG_SCROLLABLE);
 
     // --- MAIN ICON ---
-    char main_icon_path[64];
-    get_main_icon_path(main_icon_path, sizeof(main_icon_path));
-
-    lv_obj_t * main_icon = lv_img_create(lv_scr_act());
-    lv_img_set_src(main_icon, main_icon_path);
-    lv_obj_align(main_icon, LV_ALIGN_TOP_MID, 0, 40); 
+    main_icon_img = lv_img_create(lv_scr_act());
+    lv_obj_align(main_icon_img, LV_ALIGN_TOP_MID, 0, 40); 
 
     // --- CURRENT TEMP ---
-    lv_obj_t * temp_num_lbl = lv_label_create(lv_scr_act());
-    lv_obj_set_style_text_font(temp_num_lbl, &roboto_condensed_light_150, 0); 
-    lv_obj_set_style_text_color(temp_num_lbl, lv_color_white(), 0);
-    lv_label_set_text_fmt(temp_num_lbl, "%d", (int)current_weather.temp);
-    lv_obj_align(temp_num_lbl, LV_ALIGN_TOP_MID, -15, 160); 
+    temp_num_label = lv_label_create(lv_scr_act());
+    lv_obj_set_style_text_font(temp_num_label, &roboto_condensed_light_150, 0); 
+    lv_obj_set_style_text_color(temp_num_label, lv_color_white(), 0);
+    lv_obj_align(temp_num_label, LV_ALIGN_TOP_MID, -15, 160); 
 
-    lv_obj_t * temp_unit_lbl = lv_label_create(lv_scr_act());
+    temp_unit_lbl = lv_label_create(lv_scr_act());
     lv_obj_set_style_text_font(temp_unit_lbl, &roboto_condensed_light_60, 0);
     lv_obj_set_style_text_color(temp_unit_lbl, lv_color_hex(0xCBD5E1), 0);
     lv_label_set_text(temp_unit_lbl, "°C");
-    lv_obj_align_to(temp_unit_lbl, temp_num_lbl, LV_ALIGN_OUT_RIGHT_TOP, 2, 4);
+    lv_obj_align_to(temp_unit_lbl, temp_num_label, LV_ALIGN_OUT_RIGHT_TOP, 2, 4);
 
     // --- FEELS LIKE ---
-    lv_obj_t * feels_label = lv_label_create(lv_scr_act());
-    lv_obj_set_style_text_font(feels_label, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(feels_label, lv_color_hex(0x94A3B8), 0);
-    lv_label_set_text_fmt(feels_label, "FEELS LIKE %d°", (int)current_weather.feels_like);
-    lv_obj_align(feels_label, LV_ALIGN_TOP_MID, 0, 285);
+    feels_like_lbl = lv_label_create(lv_scr_act());
+    lv_obj_set_style_text_font(feels_like_lbl, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(feels_like_lbl, lv_color_hex(0x94A3B8), 0);
+    lv_obj_align(feels_like_lbl, LV_ALIGN_TOP_MID, 0, 285);
 
     // --- RANGE BAR ---
-    lv_obj_t * range_bar = lv_bar_create(lv_scr_act());
-    lv_obj_set_size(range_bar, 180, 8);
-    lv_obj_align(range_bar, LV_ALIGN_TOP_MID, 0, 315);
-    
-    lv_bar_set_range(range_bar, (int32_t)g_temp_low_end, (int32_t)g_temp_high_end);
-    
-    int32_t bar_val = (int32_t)current_weather.feels_like;
-    if (bar_val < (int32_t)g_temp_low_end)  bar_val = (int32_t)g_temp_low_end;
-    if (bar_val > (int32_t)g_temp_high_end) bar_val = (int32_t)g_temp_high_end;
-    
-    if (bar_val == (int32_t)g_temp_low_end) bar_val = (int32_t)g_temp_low_end + 4; 
-    
-    lv_bar_set_value(range_bar, bar_val, LV_ANIM_OFF);
-
-    lv_color_t active_color = get_temp_color(current_weather.feels_like);
-    lv_obj_set_style_bg_color(range_bar, lv_color_hex(0x758DAD), LV_PART_MAIN); 
-    lv_obj_set_style_bg_color(range_bar, active_color, LV_PART_INDICATOR);      
-    lv_obj_set_style_bg_opa(range_bar, LV_OPA_COVER, LV_PART_INDICATOR); 
-    lv_obj_set_style_radius(range_bar, 4, 0);
+    range_bar_obj = lv_bar_create(lv_scr_act());
+    lv_obj_set_size(range_bar_obj, 180, 8);
+    lv_obj_align(range_bar_obj, LV_ALIGN_TOP_MID, 0, 315);
+    lv_obj_set_style_bg_opa(range_bar_obj, LV_OPA_COVER, LV_PART_INDICATOR); 
+    lv_obj_set_style_radius(range_bar_obj, 4, 0);
 
     // --- 5-DAY FORECAST RADIAL DISPLAY ---
     int items_count = 5;
@@ -414,24 +403,18 @@ void build_weather_ui(void)
         lv_obj_set_style_pad_all(col, 0, 0);
         lv_obj_align(col, LV_ALIGN_CENTER, x_pos, y_pos);
 
-        char sub_icon_path[32];
-        snprintf(sub_icon_path, sizeof(sub_icon_path), "S:/%d_60.bin", forecast_weather.weather_code[i]);
-        
-        lv_obj_t * sub_icon = lv_img_create(col);
-        lv_img_set_src(sub_icon, sub_icon_path);
-        lv_obj_align(sub_icon, LV_ALIGN_TOP_MID, 0, 0);
+        sub_icons[i] = lv_img_create(col);
+        lv_obj_align(sub_icons[i], LV_ALIGN_TOP_MID, 0, 0);
 
-        lv_obj_t * day_lbl = lv_label_create(col);
-        lv_obj_set_style_text_font(day_lbl, &lv_font_montserrat_12, 0);
-        lv_obj_set_style_text_color(day_lbl, lv_color_hex(0x94A3B8), LV_PART_MAIN);
-        lv_label_set_text(day_lbl, get_weekday_from_date(forecast_weather.date[i]));
-        lv_obj_align(day_lbl, LV_ALIGN_TOP_MID, 0, 65);
+        day_labels[i] = lv_label_create(col);
+        lv_obj_set_style_text_font(day_labels[i], &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(day_labels[i], lv_color_hex(0x94A3B8), LV_PART_MAIN);
+        lv_obj_align(day_labels[i], LV_ALIGN_TOP_MID, 0, 65);
 
-        lv_obj_t * min_max_lbl = lv_label_create(col);
-        lv_obj_set_style_text_font(min_max_lbl, &lv_font_montserrat_12, 0);
-        lv_obj_set_style_text_color(min_max_lbl, lv_color_white(), 0);
-        lv_label_set_text_fmt(min_max_lbl, "%d/%d°", (int)forecast_weather.temp_min[i], (int)forecast_weather.temp_max[i]);
-        lv_obj_align(min_max_lbl, LV_ALIGN_TOP_MID, 0, 85);
+        min_max_lbls[i] = lv_label_create(col);
+        lv_obj_set_style_text_font(min_max_lbls[i], &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(min_max_lbls[i], lv_color_white(), 0);
+        lv_obj_align(min_max_lbls[i], LV_ALIGN_TOP_MID, 0, 85);
     }
 
     // --- OUTER BEZEL RING ---
@@ -446,6 +429,43 @@ void build_weather_ui(void)
     lv_obj_set_style_border_color(edge_ring, lv_color_hex(COLOR_OUTER_RING), 0); 
     lv_obj_set_style_border_width(edge_ring, 4, 0);
     lv_obj_set_style_border_opa(edge_ring, LV_OPA_80, 0);
+}
+
+void update_weather_ui_data(void)
+{
+    // 1. Update Main Weather Icon
+    char main_icon_path[64];
+    get_main_icon_path(main_icon_path, sizeof(main_icon_path));
+    lv_img_set_src(main_icon_img, main_icon_path);
+
+    // 2. Update Temperature & Feels Like Labels
+    lv_label_set_text_fmt(temp_num_label, "%d", (int)current_weather.temp);
+
+    lv_obj_align_to(temp_unit_lbl, temp_num_label, LV_ALIGN_OUT_RIGHT_TOP, 4, 4);
+
+    lv_label_set_text_fmt(feels_like_lbl, "FEELS LIKE %d°", (int)current_weather.feels_like);
+
+    // 3. Update Bar Range & Colors
+    lv_bar_set_range(range_bar_obj, (int32_t)g_temp_low_end, (int32_t)g_temp_high_end);
+    int32_t bar_val = (int32_t)current_weather.feels_like;
+    if (bar_val < (int32_t)g_temp_low_end)  bar_val = (int32_t)g_temp_low_end;
+    if (bar_val > (int32_t)g_temp_high_end) bar_val = (int32_t)g_temp_high_end;
+    if (bar_val == (int32_t)g_temp_low_end) bar_val = (int32_t)g_temp_low_end + 4; 
+
+    lv_bar_set_value(range_bar_obj, bar_val, LV_ANIM_OFF);
+    lv_color_t active_color = get_temp_color(current_weather.feels_like);
+    lv_obj_set_style_bg_color(range_bar_obj, lv_color_hex(0x758DAD), LV_PART_MAIN); 
+    lv_obj_set_style_bg_color(range_bar_obj, active_color, LV_PART_INDICATOR);
+
+    // 4. Update 5-Day Forecast
+    for (int i = 0; i < 5; i++) {
+        char sub_icon_path[32];
+        snprintf(sub_icon_path, sizeof(sub_icon_path), "S:/%d_60.bin", forecast_weather.weather_code[i]);
+        
+        lv_img_set_src(sub_icons[i], sub_icon_path);
+        lv_label_set_text(day_labels[i], get_weekday_from_date(forecast_weather.date[i]));
+        lv_label_set_text_fmt(min_max_lbls[i], "%d/%d°", (int)forecast_weather.temp_min[i], (int)forecast_weather.temp_max[i]);
+    }
 }
 
 /* --- JSON PARSER & HTTP TASK --- */
@@ -550,8 +570,7 @@ static void weather_fetch_task(void *pvParameters)
                         parse_weather_json(response_buffer);
                         
                         lvgl_lock();
-                        lv_obj_clean(lv_scr_act()); 
-                        build_weather_ui();
+                        update_weather_ui_data(); // Fast update without recreating objects[cite: 1]
                         lvgl_unlock();
                     }
                 }
@@ -590,7 +609,7 @@ static void on_captive_portal_start(void)
     lv_label_set_text(wifi_status_label, 
         "WiFi Setup Required\n\n"
         "Connect your phone to:\n\n"
-        "#00FF00 Atmos-Portal#\n\n"
+        "#00FF00 ATMOS-Portal#\n\n"
         "And follow instructions."
     );
     lv_label_set_recolor(wifi_status_label, true); 
@@ -689,13 +708,13 @@ void app_main(void)
 
     // Wi-Fi & Captive Portal setup
     wifi_prov_config_t config = WIFI_PROV_DEFAULT_CONFIG();
-    config.ap_ssid              = "Atmos-Portal";
-    config.page_title           = "Atmos Network Setup";
+    config.ap_ssid              = "ATMOS-Portal";
+    config.page_title           = "ATMOS Network Setup";
     config.portal_header        = "Connect Atmos to your WiFi";
     config.portal_subheader     = "Select your network below.";
     config.connected_header     = "Done!";
-    config.connected_subheader  = "Atmos is now connected.";
-    config.page_footer          = "Copyright &copy; Atmos";
+    config.connected_subheader  = "ATMOS is now connected.";
+    config.page_footer          = "Copyright &copy; ATMOS";
 
     config.on_connected   = on_WiFi_connected;
     config.on_portal_start = on_captive_portal_start;
@@ -713,8 +732,13 @@ void app_main(void)
         wifi_status_label = NULL;
     }
 
-    init_backlight_pwm();
-    set_backlight_brightness(100);
+    // init_backlight_pwm();
+    // set_backlight_brightness(100);
+
+    // Construct Persistent UI Layout ONCE
+    lvgl_lock();
+    build_weather_ui_once();
+    lvgl_unlock();
 
     xTaskCreatePinnedToCore(
         weather_fetch_task, 
@@ -727,7 +751,7 @@ void app_main(void)
 
     reset_button_init();
 
-    // 6. Main LVGL Execution Loop
+    // Main LVGL Execution Loop
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(10));
         lvgl_lock();
