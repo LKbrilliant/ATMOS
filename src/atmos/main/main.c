@@ -755,6 +755,7 @@ void app_main(void)
     SD_Init();
     LVGL_Init();
     register_custom_sd_driver();
+    init_backlight_pwm();
 
     // Wi-Fi & Captive Portal setup
     wifi_prov_config_t config = WIFI_PROV_DEFAULT_CONFIG();
@@ -782,7 +783,6 @@ void app_main(void)
         wifi_status_label = NULL;
     }
 
-    init_backlight_pwm();
     wakeup_display_and_star_dim_timer();
 
     // Construct Persistent UI Layout ONCE
