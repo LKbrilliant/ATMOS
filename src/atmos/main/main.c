@@ -17,6 +17,7 @@
 
 #include "QMI8658.h"
 #include "ST7701S.h"
+#include "TCA9554PWR.h"
 #include "SD_MMC.h"
 #include "LVGL_Driver.h"
 #include "LVGL_Example.h"
@@ -51,7 +52,7 @@ LV_FONT_DECLARE(roboto_condensed_light_60)
 #define BRIGHTNESS_HIGH             100   // Full brightness percentage
 #define BRIGHTNESS_LOW              10    // Dimmed brightness percentage
 
-#define TAP_THRESHOLD_G             0.08f  // Acceleration magnitude change threshold in g
+#define TAP_THRESHOLD_G             0.07f  // Acceleration magnitude change threshold in g (best=0.07f)
 #define TAP_DEBOUNCE_MS             300   // Minimum time between tap detections
 
 static esp_timer_handle_t dim_timer = NULL;
@@ -165,7 +166,7 @@ void reset_backlight_dim_timer(void)
     esp_timer_start_once(dim_timer, BRIGHTNESS_DIM_TIMEOUT_MS * 1000ULL);
 }
 
-void wakeup_display_and_star_dim_timer(void)
+void wakeup_display_and_stat_dim_timer(void)
 {
     set_backlight_brightness(BRIGHTNESS_HIGH);
     reset_backlight_dim_timer();
@@ -184,7 +185,7 @@ void check_tap_event(void)
     if (delta_g > TAP_THRESHOLD_G && (current_time_ms - last_tap_time_ms) > TAP_DEBOUNCE_MS) {
         last_tap_time_ms = current_time_ms;
         
-        wakeup_display_and_star_dim_timer();
+        wakeup_display_and_stat_dim_timer();
     }
 }
 
@@ -378,10 +379,10 @@ static void get_main_icon_path(char *buffer, size_t max_len)
     if (current_weather.is_day == 0) {
         if (code == 0) {
             float moon = calculate_local_moon_phase(forecast_weather.date[0]);
-            if (moon < 0.1f || moon > 0.9f) {
+            if (moon < 0.05f || moon > 0.95f) {
                 snprintf(buffer, max_len, "S:/0_new_moon_100.bin");
                 return;
-            } else if (moon > 0.4f && moon < 0.6f) {
+            } else if (moon > 0.45f && moon < 0.55f) {
                 snprintf(buffer, max_len, "S:/0_full_moon_100.bin");
                 return;
             } else {
@@ -596,6 +597,26 @@ static void weather_fetch_task(void *pvParameters)
     }
 
     while(1) {
+        wifi_ap_record_t ap_info;
+        if (esp_wifi_sta_get_ap_info(&ap_info) != ESP_OK) {
+            ESP_LOGW(TAG, "Wi-Fi link lost! Triggering reconnect...");
+            esp_wifi_connect();
+            
+            int retry_count = 0;
+            while (esp_wifi_sta_get_ap_info(&ap_info) != ESP_OK && retry_count < 10) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                retry_count++;
+            }
+
+            if (esp_wifi_sta_get_ap_info(&ap_info) != ESP_OK) {
+                ESP_LOGE(TAG, "Wi-Fi reconnect failed. Will retry in next interval.");
+                vTaskDelay(xDelay);
+                continue;
+            } else {
+                ESP_LOGI(TAG, "Wi-Fi reconnected successfully!");
+            }
+        }
+
         memset(response_buffer, 0, MAX_HTTP_RECV_BUFFER);
         esp_http_client_handle_t client = esp_http_client_init(&http_config);
         
@@ -622,10 +643,12 @@ static void weather_fetch_task(void *pvParameters)
                         parse_weather_json(response_buffer);
                         
                         lvgl_lock();
-                        update_weather_ui_data(); // Fast update without recreating objects
+                        update_weather_ui_data();
                         lvgl_unlock();
                     }
                 }
+            } else {
+                ESP_LOGE(TAG, "HTTP connection error: %s", esp_err_to_name(err));
             }
             esp_http_client_cleanup(client);
         }
@@ -711,6 +734,7 @@ void Driver_Init(void)
     BAT_Init();
     I2C_Init();
     QMI8658_Init();
+    EXIO_Init();  // needed for LCD rest
     xTaskCreatePinnedToCore(
         Driver_Loop, 
         "Other Driver task",
@@ -756,6 +780,7 @@ void app_main(void)
     LVGL_Init();
     register_custom_sd_driver();
     init_backlight_pwm();
+    wakeup_display_and_stat_dim_timer();
 
     // Wi-Fi & Captive Portal setup
     wifi_prov_config_t config = WIFI_PROV_DEFAULT_CONFIG();
@@ -782,8 +807,6 @@ void app_main(void)
         wifi_screen = NULL;
         wifi_status_label = NULL;
     }
-
-    wakeup_display_and_star_dim_timer();
 
     // Construct Persistent UI Layout ONCE
     lvgl_lock();
