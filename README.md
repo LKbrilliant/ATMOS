@@ -1,6 +1,13 @@
 # ATMOS
 ATMOS is an embedded, standalone weather forecasting display based on ESP32-S3.
 
+![ATMOS](/imgs/img_03.jpg)
+
+![ATMOS](/imgs/img_02.jpg)
+
+![ATMOS](/imgs/3D_printed_parts.jpg)
+
+
 ## Features
 
 * **Automatic Captive Portal:** If no saved Wi-Fi network is found on boot, the device automatically broadcasts a setup Access Point and captive portal.
@@ -12,9 +19,6 @@ ATMOS is an embedded, standalone weather forecasting display based on ESP32-S3.
   * **21 °C** $\rightarrow$ Ideal Comfort (Green)
   * **Max Temp** $\rightarrow$ Hot (Red)
 * **Tap/raise to wake up:** Gently tap or bump the unit to wake the display and boost brightness back to 100%
-
-## ToDo:
-- Add battery voltage monitor and a charge reminder when low on battery.
 
 ## Known issues
 - Color inversion and upward shift of the display at the first UI draw (right after setting the credentials). Quick reset or power on/off will resolve the issue. This only occur at the initial setup.
