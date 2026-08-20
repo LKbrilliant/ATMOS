@@ -5,6 +5,8 @@ ATMOS is an embedded, standalone weather forecasting display based on ESP32-S3.
 
 ![ATMOS](/imgs/img_02.jpg)
 
+![ATMOS](/imgs/img_04.jpg)
+
 ![ATMOS](/imgs/3D_printed_parts.jpg)
 
 
